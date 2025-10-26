@@ -1,0 +1,57 @@
+#include <Servo.h>
+
+#define PIN_TRIG 12
+#define PIN_ECHO 13
+#define PIN_SERVO 10
+#define _DIST_MIN 180.0
+#define _DIST_MAX 360.0
+#define SND_VEL 346.0
+#define PULSE_DURATION 10
+#define TIMEOUT 30000UL
+#define SCALE (0.0005 * SND_VEL)
+#define ALPHA 0.3
+
+Servo myservo;
+float dist_raw = 0.0;
+float dist_ema = 0.0;
+
+float getDistance() {
+  digitalWrite(PIN_TRIG, LOW);
+  delayMicroseconds(2);
+  digitalWrite(PIN_TRIG, HIGH);
+  delayMicroseconds(PULSE_DURATION);
+  digitalWrite(PIN_TRIG, LOW);
+  unsigned long duration = pulseIn(PIN_ECHO, HIGH, TIMEOUT);
+  if (duration == 0) return _DIST_MAX;
+  return duration * SCALE;
+}
+
+void setup() {
+  Serial.begin(57600);
+  pinMode(PIN_TRIG, OUTPUT);
+  pinMode(PIN_ECHO, INPUT);
+  myservo.attach(PIN_SERVO);
+  myservo.write(90);
+  float init = getDistance();
+  if (init < _DIST_MIN) init = _DIST_MIN;
+  if (init > _DIST_MAX) init = _DIST_MAX;
+  dist_ema = init;
+  delay(300);
+}
+
+void loop() {
+  dist_raw = getDistance();
+  dist_ema = ALPHA * dist_raw + (1 - ALPHA) * dist_ema;
+  int servoAngle;
+  if (dist_ema <= _DIST_MIN) servoAngle = 0;
+  else if (dist_ema >= _DIST_MAX) servoAngle = 180;
+  else servoAngle = map(dist_ema, _DIST_MIN, _DIST_MAX, 0, 180);
+  myservo.write(servoAngle);
+  Serial.print("Min:");   Serial.print(_DIST_MIN);
+  Serial.print(",dist:");  Serial.print(dist_raw);
+  Serial.print(",ema:");   Serial.print(dist_ema);
+  Serial.print(",Servo:"); Serial.print(myservo.read());
+  Serial.print(",Max:");   Serial.print(_DIST_MAX);
+  Serial.println("");
+  delay(100);
+}
